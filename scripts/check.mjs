@@ -30,3 +30,12 @@ assert.equal(phaseAt(t0, g, t0 + 10_000).kind, "reveal");
 assert.equal(phaseAt(t0, g, t0 + (10 + REVEAL_S) * 1000).round, 1);
 assert.equal(phaseAt(t0, g, t0 + 2 * (10 + REVEAL_S) * 1000).kind, "done");
 console.log("rooms ok");
+
+// Mystery boxes: the leader never rolls the Thunderhead, the last place can, no Fog Bank in the final round.
+import { rollItem, ITEMS } from "../lib/rooms.js";
+const seq = (n) => Array.from({ length: n }, (_, i) => (i + 0.5) / n); // sweep the whole rng range
+const rolls = (st, last) => new Set(seq(200).map((v) => rollItem(st, last, () => v)));
+assert.ok(!rolls(0, false).has("thunder") && rolls(1, false).has("thunder"));
+assert.ok(!rolls(0.4, true).has("fog") && rolls(0.4, false).has("fog"));
+assert.ok([...rolls(0, false), ...rolls(0.5, false), ...rolls(1, false)].every((k) => ITEMS[k]));
+console.log("items ok");

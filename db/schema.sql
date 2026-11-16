@@ -60,3 +60,30 @@ CREATE TABLE IF NOT EXISTS gpu_endpoint (
   url        text NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Dogfight mystery boxes: at most one per room per round (the PK enforces it atomically).
+CREATE TABLE IF NOT EXISTS room_items (
+  room_code  text NOT NULL REFERENCES rooms (code) ON DELETE CASCADE,
+  round      integer NOT NULL,
+  player_id  bigint NOT NULL,
+  item       text NOT NULL,
+  target     bigint,
+  used_at    timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (room_code, round)
+);
+-- Everything that moves a score besides answers (power-ups), plus feed-only rows (box found, shield, fog).
+CREATE TABLE IF NOT EXISTS room_events (
+  id         bigserial PRIMARY KEY,
+  room_code  text NOT NULL REFERENCES rooms (code) ON DELETE CASCADE,
+  round      integer NOT NULL,
+  by_player  bigint,
+  target     bigint,
+  item       text NOT NULL,
+  pts        integer NOT NULL DEFAULT 0,
+  blocked    boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS room_events_room ON room_events (room_code, id);
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS shield_round integer; -- shield active while <= this round
+ALTER TABLE room_players ADD COLUMN IF NOT EXISTS fog_round integer;    -- prompt fogged in this round

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/mascot.svg" width="96" alt="Skyllion rocket mascot" />
+  <img src="public/px/plane-8x.png" width="176" alt="Skyllion pixel-art plane mascot" />
 </p>
 
 <h1 align="center">Skyllion</h1>
@@ -28,6 +28,8 @@ Every day everyone gets the same **7 prompts** ("Name a moon in our solar system
 | 🚀 Deep Space | 85 | Few pilots get up here |
 | 🌟 One in a Skyllion | 100 | The star answer |
 
+The whole game is one tall, scrolling pixel-art sky. Your plane climbs past birds, balloons, airliners at cruising altitude, weather balloons, meteors, the aurora, satellites, the ISS and the Moon. Dashed tier lines show where each answer would carry you, and they light up in the tier's rarity colour as you pass them. Rarer answers hit harder: a green glow, then pulsing blue, then purple light rays, and for **One in a Skyllion** a golden flash, sparkle burst and screen shake.
+
 You pass through atmosphere zones as you climb: Troposphere → Stratosphere → Mesosphere → Thermosphere → **Kármán Line** → ISS Orbit → Exosphere → Escape Velocity.
 
 ## Modes
@@ -45,7 +47,8 @@ You pass through atmosphere zones as you climb: Troposphere → Stratosphere →
 - **Public** rooms are listed under *Public skies*. **Private** rooms are joined with a 5-letter code or an invite link.
 - The host sets the room name, visibility, rounds (1–15), seconds per round (10–60), max pilots (2–12), category, and whether you can retry after a grounded answer.
 - The host can kick pilots, start the race, and run it back. If the host leaves, the crown passes to the next pilot.
-- During a round you only see *who* has landed. Everyone's answers are revealed together when the round ends.
+- During a round you only see *who* has landed. Everyone's answers are revealed together when the round ends, and every plane climbs at once.
+- Each pilot flies their own colour of plane. Opponents are drawn in the sky at their altitude and named on the altitude ruler, even when they're off-screen.
 
 ## How it works
 
@@ -108,6 +111,7 @@ When your PC is off, the game still loads but answers show *"Control tower offli
 | `npm run migrate` | Apply `db/schema.sql` to Neon (direct connection) |
 | `npm run gpu` | Expose the local Nimble judge to the deployed app |
 | `npm test` | Self-checks: tier mapping, daily prompts, room clock, settings clamping |
+| `node scripts/pixel-art.mjs` | Regenerate every sprite in `public/px/` from the ASCII pixel grids (no image tools needed) |
 | `npm run simulate` | Send a batch of sample answers to Nimble and print raw scores and tiers |
 
 Optional env: `NIMBLE_MODEL` (default `nimble-v3`), `OLLAMA_URL` (overrides everything).
@@ -115,6 +119,7 @@ Optional env: `NIMBLE_MODEL` (default `nimble-v3`), `OLLAMA_URL` (overrides ever
 ## Project layout
 
 ```
+app/Sky.js                the pixel sky: world, sprites, HUD, ruler, rarity effects
 app/page.js               solo game: daily, unlimited, archive, stats, FAQ
 app/party/Party.js        Dogfight: room browser, lobby, rounds, reveals, podium
 app/api/judge             answer → tier (cached Nimble verdict)
@@ -125,7 +130,8 @@ lib/rooms.js              room settings + time-derived game clock
 lib/prompts.js            prompt bank + seeded daily selection
 scripts/gpu-gateway.mjs   token-guarded GPU gateway + Cloudflare tunnel
 db/schema.sql             all tables
-public/                   original SVG art (mascot, tier badges)
+scripts/pixel-art.mjs     sprite source: ASCII pixel grids, encoded to PNG
+public/px/                generated pixel-art sprites (plane, tiers, scenery)
 ```
 
 ## Credits
