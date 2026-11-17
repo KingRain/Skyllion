@@ -1,4 +1,5 @@
 import { VT323 } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const font = VT323({ weight: "400", subsets: ["latin"] });
@@ -13,7 +14,7 @@ export const viewport = { width: "device-width", initialScale: 1, viewportFit: "
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={font.className}>{children}</body>
+      <body className={font.className}>{children}<Analytics /></body>
     </html>
   );
 }
