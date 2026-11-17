@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, DEFAULTS, ITEMS } from "@/lib/rooms";
 import { TIERS, GROUNDED, KM_PER_POINT, zoneFor } from "@/lib/tiers";
-import { World, Ruler, Hud, Landed, Px, Title, Close } from "../Sky";
+import { World, Ruler, Hud, Landed, Px, Title, Close, DidYouMean } from "../Sky";
 
 // ---- identity: a private random token per browser + a call sign, no account needed ----
 const uuid = () =>
@@ -304,16 +304,19 @@ function Round({ s, left, act, mine, fogLeft, boxOpen }) {
     return () => clearTimeout(t);
   }, [mine?.tier, mine?.answer]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!text.trim() || busy) return;
+  const [sug, setSug] = useState(null);
+  const send = async (answer, force = false) => {
+    if (!answer.trim() || busy) return;
     setBusy(true);
     setNote("");
-    const r = await act("answer", { answer: text });
+    setSug(null);
+    const r = await act("answer", { answer, force });
     setBusy(false);
-    if (r && !r.tier) setNote(r.locked ? "GROUNDED · no retries in this room" : `"${text.trim()}" · GROUNDED · try another`);
+    if (r?.suggest) return setSug({ typed: answer.trim(), suggest: r.suggest });
+    if (r && !r.tier) setNote(r.locked ? "GROUNDED · no retries in this room" : `"${answer.trim()}" · GROUNDED · try another`);
     if (r && !r.locked) setText("");
   };
+  const submit = (e) => { e.preventDefault(); send(text); };
 
   const landed = players.filter((p) => p.landed && p.id !== me).map((p) => p.name);
   return (
@@ -328,6 +331,7 @@ function Round({ s, left, act, mine, fogLeft, boxOpen }) {
       )}
       {mine && !(boxOpen && !big) && <Landed tier={mine.tier} answer={mine.answer} mini={!big} />}
       {note && !mine && <p className="reject" key={note}>{note}</p>}
+      {sug && !mine && !busy && <DidYouMean {...sug} pick={(a) => { setText(a); send(a, a === sug.typed); }} />}
       {busy && <div className="chip">{text.trim()} ▲</div>}
       {me !== null && !mine && (
         <form onSubmit={submit} className={`dock${note ? " jolt-x" : ""}`} key={`dock${note}`}>

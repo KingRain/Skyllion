@@ -217,3 +217,14 @@ export function Close({ onClick, href, label = "Close" }) {
 export function Title({ small }) {
   return <h1 className={`title${small ? " small" : ""}`}>SKYLLION</h1>;
 }
+
+// "did you mean" offer when an answer is a near-miss spelling of one already judged valid.
+export function DidYouMean({ typed, suggest, pick }) {
+  return (
+    <div className="suggest" role="dialog" aria-label="Spelling suggestion">
+      <span>did you mean</span>
+      <button className="btn sm" autoFocus onClick={() => pick(suggest)}>{suggest}</button>
+      <button className="btn sm ghost" onClick={() => pick(typed)}>keep “{typed}”</button>
+    </div>
+  );
+}

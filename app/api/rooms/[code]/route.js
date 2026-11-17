@@ -1,5 +1,5 @@
 import { pool, q } from "@/lib/db";
-import { rule } from "@/lib/nimble";
+import { rule } from "@/lib/judge";
 import { TIERS } from "@/lib/tiers";
 import { cleanSettings, phaseAt, roomPrompts, rollItem, COUNTDOWN_S, REVEAL_S, UUID, nickOf, ITEMS, BOX_CHANCE, BOX_MIN_LEFT_MS, FOG_MS } from "@/lib/rooms";
 
@@ -131,8 +131,9 @@ export async function POST(req, { params }) {
       if (phase.kind !== "round") return err("Round is closed", 409);
       const locked = await q("SELECT 1 FROM room_answers WHERE room_code = $1 AND player_id = $2 AND round = $3", [code, me.id, phase.round]);
       if (locked.rows[0]) return err("You already landed this round", 409);
-      const r = await rule(prompts[phase.round].id, body.answer);
+      const r = await rule(prompts[phase.round].id, body.answer, body.force === true);
       if (r.error) return err(r.error, r.status);
+      if (r.suggest) return Response.json({ suggest: r.suggest }); // not a landing: the player picks a spelling first
       // ponytail: submission time is checked when the request arrives, so a slow model verdict can't cost the player the round.
       if (r.tier || !room.settings.retries)
         await q(

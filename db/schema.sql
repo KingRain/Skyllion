@@ -1,4 +1,7 @@
--- Cached Nimble v3 verdicts: keeps scoring consistent for everyone and spares the model. `hits` = how often players gave it.
+-- levenshtein() powers the "did you mean" typo suggestions in lib/judge.js.
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+
+-- Cached judge verdicts: keeps scoring consistent for everyone and spares the model. `hits` = how often players gave it.
 CREATE TABLE IF NOT EXISTS judgments (
   prompt_id  text NOT NULL,
   answer     text NOT NULL,
@@ -54,12 +57,7 @@ CREATE TABLE IF NOT EXISTS room_answers (
   PRIMARY KEY (room_code, player_id, round)
 );
 
--- Where the deployed app reaches the home GPU: written by `npm run gpu` (scripts/gpu-gateway.mjs) on each tunnel start.
-CREATE TABLE IF NOT EXISTS gpu_endpoint (
-  id         integer PRIMARY KEY CHECK (id = 1),
-  url        text NOT NULL,
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+DROP TABLE IF EXISTS gpu_endpoint;
 
 -- Dogfight mystery boxes: at most one per room per round (the PK enforces it atomically).
 CREATE TABLE IF NOT EXISTS room_items (

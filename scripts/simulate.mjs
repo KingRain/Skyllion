@@ -1,5 +1,5 @@
-// Sends sample answers straight to Nimble v3 and prints raw scores + resulting tier. Run: node scripts/simulate.mjs
-import { judge } from "../lib/nimble.js";
+// Sends sample answers straight to the judge model and prints raw scores + resulting tier. Run: node scripts/simulate.mjs
+import { judge } from "../lib/judge.js";
 import { tierFor, TIERS } from "../lib/tiers.js";
 import { BY_ID } from "../lib/prompts.js";
 

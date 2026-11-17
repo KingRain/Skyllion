@@ -39,3 +39,8 @@ assert.ok(!rolls(0, false).has("thunder") && rolls(1, false).has("thunder"));
 assert.ok(!rolls(0.4, true).has("fog") && rolls(0.4, false).has("fog"));
 assert.ok([...rolls(0, false), ...rolls(0.5, false), ...rolls(1, false)].every((k) => ITEMS[k]));
 console.log("items ok");
+
+// Typo suggestions: never for short words, then more edits allowed as the answer grows.
+import { maxEdits } from "../lib/judge.js";
+assert.deepEqual([3, 4, 5, 6, 7, 20].map(maxEdits), [0, 0, 1, 1, 2, 2]);
+console.log("typo ok");

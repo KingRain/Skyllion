@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { pickPrompts, pastDays, today } from "@/lib/prompts";
 import { TIERS, GROUNDED, ROUNDS, SECONDS, KM_PER_POINT, zoneFor } from "@/lib/tiers";
-import { World, Ruler, Hud, Landed, Px, Title, Close, useCountUp } from "./Sky";
+import { World, Ruler, Hud, Landed, Px, Title, Close, useCountUp, DidYouMean } from "./Sky";
 
 // ---- per-browser progress (guest mode) ----
 const load = () => { try { return JSON.parse(localStorage.getItem("skyllion") || "{}"); } catch { return {}; } };
@@ -149,23 +149,28 @@ function Play({ run, onDone }) {
     return () => clearTimeout(t);
   }, [left, flash]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!text.trim() || busy || flash) return;
+  const [sug, setSug] = useState(null); // { typed, suggest }: "did you mean" offer
+
+  // force = player kept their own spelling, so the model judges it instead of the cache suggesting a fix.
+  const send = async (answer, force = false) => {
+    if (!answer.trim() || busy || flash) return;
     setBusy(true);
     setReject("");
+    setSug(null);
     try {
-      const res = await fetch("/api/judge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ promptId: prompt.id, answer: text }) });
+      const res = await fetch("/api/judge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ promptId: prompt.id, answer, force }) });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
-      if (j.tier) next({ answer: text.trim(), tier: j.tier });
-      else { setReject(`"${text.trim()}" · GROUNDED · try another`); setText(""); }
+      if (j.suggest) setSug({ typed: answer.trim(), suggest: j.suggest });
+      else if (j.tier) next({ answer: answer.trim(), tier: j.tier });
+      else { setReject(`"${answer.trim()}" · GROUNDED · try another`); setText(""); }
     } catch (e) {
       setReject(e.message);
     } finally {
       setBusy(false);
     }
   };
+  const submit = (e) => { e.preventDefault(); send(text); };
 
   const done = results.current;
   const km = kmOf(done);
@@ -186,6 +191,7 @@ function Play({ run, onDone }) {
       )}
       {flash && <Landed tier={flash.tier} answer={flash.answer} />}
       {reject && !flash && <p className="reject" key={reject}>{reject}</p>}
+      {sug && !flash && !busy && <DidYouMean {...sug} pick={(a) => { setText(a); send(a, a === sug.typed); }} />}
       {busy && <div className="chip">{text.trim()} ▲</div>}
       <form onSubmit={submit} className={`dock${flash ? " away" : ""}${reject ? " jolt-x" : ""}`} key={`dock${reject}`}>
         <input ref={input} autoFocus value={text} onChange={(e) => setText(e.target.value)} maxLength={80} placeholder="your rarest answer…" aria-label="Your answer" disabled={busy || !!flash} />
@@ -309,7 +315,7 @@ function Faq({ close }) {
         </ul>
         <p>1 point = 1 km. A perfect day is 700 km: past the Kármán line and the ISS, out to escape velocity.</p>
         <h3>WHO DECIDES RARITY?</h3>
-        <p>A local decision model (Nimble v3, through Ollama's System One API) judges whether each answer fits and how unusual it is. Verdicts are cached, so everyone gets the same ruling for the same answer.</p>
+        <p>An AI decision model (Cloudflare's clef-flash) judges whether each answer fits and how unusual it is. Verdicts are cached, so everyone gets the same ruling for the same answer.</p>
         <h3>WHEN DOES THE DAILY RESET?</h3>
         <p>At midnight US Eastern. Streaks count daily ascents only.</p>
       </div>
@@ -334,7 +340,7 @@ function Credits({ close }) {
         </div>
         <h3>FLIGHT CREW</h3>
         <ul className="crew">
-          <li><b>Answer judge</b><span>Nimble v3 by Bespoke Labs, run locally through Ollama</span></li>
+          <li><b>Answer judge</b><span>clef-flash on Cloudflare Workers AI</span></li>
           <li><b>Database</b><span>Neon Postgres</span></li>
           <li><b>Hosting</b><span>Vercel · Next.js</span></li>
           <li><b>Font</b><span>VT323 by Peter Hull</span></li>

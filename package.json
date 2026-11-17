@@ -7,7 +7,6 @@
     "start": "next start",
     "test": "node scripts/check.mjs",
     "migrate": "node --env-file=.env.local scripts/migrate.mjs",
-    "gpu": "node --env-file=.env.local --env-file=.env.gpu scripts/gpu-gateway.mjs",
     "simulate": "node scripts/simulate.mjs"
   },
   "dependencies": {
