@@ -1,4 +1,4 @@
--- levenshtein() powers the "did you mean" typo suggestions in lib/judge.js.
+-- levenshtein() is used to find a candidate spelling for explicit confirmation.
 CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
 
 -- Cached judge verdicts: keeps scoring consistent for everyone and spares the model. `hits` = how often players gave it.

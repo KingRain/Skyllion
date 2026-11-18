@@ -93,7 +93,7 @@ export default function Home() {
             <button className="btn ghost" onClick={() => go("faq")}>How to play</button>
           </div>
           <p className="streak">🔥 {streak(store.history || {})} day streak</p>
-          <button className="linkbtn" onClick={() => go("credits")}>credits · made by Sam Joe</button>
+          <button className="linkbtn" onClick={() => go("credits")}>credits</button>
         </section>
       )}
 
@@ -117,7 +117,9 @@ function Play({ run, onDone }) {
   const [ghosts, setGhosts] = useState([]);
   const results = useRef([]);
   const input = useRef(null);
+  const requestSeq = useRef(0);
   const prompt = run.prompts[i];
+  const [correction, setCorrection] = useState("");
 
   useEffect(() => {
     if (run.mode !== "daily") return;
@@ -126,9 +128,14 @@ function Play({ run, onDone }) {
     }).catch(() => {});
   }, [run]);
 
+  useEffect(() => { requestSeq.current++; setCorrection(""); }, [prompt.id]);
+
   const next = (r) => {
     if (results.current.length > i) return; // round already settled (timer expired mid-request)
+    requestSeq.current++;
     results.current = [...results.current, r];
+    setBusy(false);
+    setCorrection("");
     setFlash(r);
     const hold = 1700 + (r.tier ? TIERS[r.tier].lv : 0) * 450; // rarer answers get a longer moment
     setTimeout(() => {
@@ -149,28 +156,35 @@ function Play({ run, onDone }) {
     return () => clearTimeout(t);
   }, [left, flash]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [sug, setSug] = useState(null); // { typed, suggest }: "did you mean" offer
-
-  // force = player kept their own spelling, so the model judges it instead of the cache suggesting a fix.
-  const send = async (answer, force = false) => {
+  const send = async (answer) => {
     if (!answer.trim() || busy || flash) return;
+    const requestId = ++requestSeq.current;
     setBusy(true);
     setReject("");
-    setSug(null);
+    setCorrection("");
     try {
-      const res = await fetch("/api/judge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ promptId: prompt.id, answer, force }) });
+      const res = await fetch("/api/judge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ promptId: prompt.id, answer }) });
       const j = await res.json();
+      if (requestId !== requestSeq.current) return;
       if (!res.ok) throw new Error(j.error);
-      if (j.suggest) setSug({ typed: answer.trim(), suggest: j.suggest });
+      if (j.suggest) setCorrection(j.suggest);
       else if (j.tier) next({ answer: answer.trim(), tier: j.tier });
       else { setReject(`"${answer.trim()}" · GROUNDED · try another`); setText(""); }
     } catch (e) {
-      setReject(e.message);
+      if (requestId === requestSeq.current) setReject(e.message);
     } finally {
-      setBusy(false);
+      if (requestId === requestSeq.current) setBusy(false);
     }
   };
-  const submit = (e) => { e.preventDefault(); send(text); };
+  const submit = (e) => {
+    e.preventDefault();
+    if (correction) {
+      setText(correction);
+      send(correction);
+      return;
+    }
+    send(text);
+  };
 
   const done = results.current;
   const km = kmOf(done);
@@ -191,10 +205,10 @@ function Play({ run, onDone }) {
       )}
       {flash && <Landed tier={flash.tier} answer={flash.answer} />}
       {reject && !flash && <p className="reject" key={reject}>{reject}</p>}
-      {sug && !flash && !busy && <DidYouMean {...sug} pick={(a) => { setText(a); send(a, a === sug.typed); }} />}
+      {correction && !flash && !busy && <DidYouMean answer={correction} />}
       {busy && <div className="chip">{text.trim()} ▲</div>}
       <form onSubmit={submit} className={`dock${flash ? " away" : ""}${reject ? " jolt-x" : ""}`} key={`dock${reject}`}>
-        <input ref={input} autoFocus value={text} onChange={(e) => setText(e.target.value)} maxLength={80} placeholder="your rarest answer…" aria-label="Your answer" disabled={busy || !!flash} />
+        <input ref={input} autoFocus value={text} onChange={(e) => { setText(e.target.value); setCorrection(""); }} maxLength={80} placeholder="your rarest answer…" aria-label="Your answer" disabled={busy || !!flash} />
         <button className="btn" disabled={busy || !!flash}>{busy ? <span className="blink">…</span> : "LAUNCH"}</button>
       </form>
     </>
@@ -337,7 +351,19 @@ function Credits({ close }) {
             <p>Developer of Skyllion: game design, code and every pixel in the sky.</p>
             <a className="btn" href="https://samjoe.me" target="_blank" rel="noopener noreferrer">▲ samjoe.me</a>
           </div>
+          
         </div>
+        <div className="dev">
+          <Px name="plane" scale={4} fps={12} className="devplane" />
+          <div>
+            <p className="eyebrow">ENGINEERED &amp; IMAGINED BY</p>
+            <h3 className="devname">Manvith Kumar</h3>
+            <p>Developer of Skyllion: game UI, background and algorithms behind the sky.</p>
+            <a className="btn" href="https://manvith.tech" target="_blank" rel="noopener noreferrer">▲ manvith.tech</a>
+          </div>
+          
+        </div>
+        
         <h3>FLIGHT CREW</h3>
         <ul className="crew">
           <li><b>Answer judge</b><span>clef-flash on Cloudflare Workers AI</span></li>

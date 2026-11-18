@@ -208,6 +208,8 @@ img, .px { image-rendering: pixelated; }
 @keyframes joltx { 25% { transform: translateX(-8px); } 50% { transform: translateX(7px); } 75% { transform: translateX(-4px); } }
 .reject { position: fixed; z-index: 11; left: 12px; right: 56px; bottom: calc(92px + env(safe-area-inset-bottom)); text-align: center; margin: 0;
   color: #ffb35c; letter-spacing: .1em; font-size: 19px; text-shadow: 0 2px 0 rgba(0, 0, 0, .7), 0 0 10px rgba(255, 159, 67, .5); animation: joltx .35s steps(4); }
+.correction { color: var(--cyan); letter-spacing: normal; animation: none; }
+.correction b { color: var(--ink); }
 .reject.static { position: static; }
 .chip { position: fixed; z-index: 11; left: 50%; bottom: 100px; transform: translateX(-50%); padding: 6px 14px 4px; font-size: 22px; letter-spacing: .06em; white-space: nowrap;
   color: var(--cyan); background: rgba(12, 20, 48, .95); box-shadow: 0 0 0 3px var(--cyan), 0 0 24px var(--cyan); text-shadow: 0 0 8px var(--cyan); animation: chipup 1.2s ease-in infinite; }
@@ -545,9 +547,3 @@ html, body { overscroll-behavior: none; }
 .roomhead .closebtn:active { transform: translateY(6px); }
 .menu .row .closebtn { top: 16px; right: 16px; }
 
-/* "did you mean" typo offer, sits where the reject note does */
-.suggest { position: fixed; z-index: 12; left: 12px; right: 56px; bottom: calc(92px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto;
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; padding: 10px 12px;
-  background: var(--panel-a); box-shadow: 0 0 0 3px var(--outline), 0 0 0 6px rgba(92, 225, 255, .28); }
-.suggest > span { color: var(--cyan); letter-spacing: .12em; text-transform: uppercase; }
-@media (max-width: 520px) { .suggest { bottom: calc(76px + env(safe-area-inset-bottom)); } }

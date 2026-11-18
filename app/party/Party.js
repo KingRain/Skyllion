@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, DEFAULTS, ITEMS } from "@/lib/rooms";
 import { TIERS, GROUNDED, KM_PER_POINT, zoneFor } from "@/lib/tiers";
@@ -296,6 +296,16 @@ function Round({ s, left, act, mine, fogLeft, boxOpen }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [big, setBig] = useState(false); // full landed banner for a moment, then a compact one
+  const requestSeq = useRef(0);
+  const [correction, setCorrection] = useState("");
+
+  useEffect(() => {
+    requestSeq.current++;
+    setBusy(false);
+    setText("");
+    setNote("");
+    setCorrection("");
+  }, [prompt.id]);
 
   useEffect(() => {
     if (!mine) return;
@@ -304,19 +314,34 @@ function Round({ s, left, act, mine, fogLeft, boxOpen }) {
     return () => clearTimeout(t);
   }, [mine?.tier, mine?.answer]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [sug, setSug] = useState(null);
-  const send = async (answer, force = false) => {
+  const send = async (answer) => {
     if (!answer.trim() || busy) return;
+    const requestId = ++requestSeq.current;
     setBusy(true);
     setNote("");
-    setSug(null);
-    const r = await act("answer", { answer, force });
-    setBusy(false);
-    if (r?.suggest) return setSug({ typed: answer.trim(), suggest: r.suggest });
-    if (r && !r.tier) setNote(r.locked ? "GROUNDED · no retries in this room" : `"${answer.trim()}" · GROUNDED · try another`);
-    if (r && !r.locked) setText("");
+    setCorrection("");
+    let r;
+    try {
+      r = await act("answer", { answer });
+    } finally {
+      if (requestId === requestSeq.current) setBusy(false);
+    }
+    if (requestId !== requestSeq.current) return;
+    if (r?.suggest) setCorrection(r.suggest);
+    else {
+      if (r && !r.tier) setNote(r.locked ? "GROUNDED · no retries in this room" : `"${answer.trim()}" · GROUNDED · try another`);
+      if (r && !r.locked) setText("");
+    }
   };
-  const submit = (e) => { e.preventDefault(); send(text); };
+  const submit = (e) => {
+    e.preventDefault();
+    if (correction) {
+      setText(correction);
+      send(correction);
+      return;
+    }
+    send(text);
+  };
 
   const landed = players.filter((p) => p.landed && p.id !== me).map((p) => p.name);
   return (
@@ -331,11 +356,11 @@ function Round({ s, left, act, mine, fogLeft, boxOpen }) {
       )}
       {mine && !(boxOpen && !big) && <Landed tier={mine.tier} answer={mine.answer} mini={!big} />}
       {note && !mine && <p className="reject" key={note}>{note}</p>}
-      {sug && !mine && !busy && <DidYouMean {...sug} pick={(a) => { setText(a); send(a, a === sug.typed); }} />}
+      {correction && !mine && !busy && <DidYouMean answer={correction} />}
       {busy && <div className="chip">{text.trim()} ▲</div>}
       {me !== null && !mine && (
         <form onSubmit={submit} className={`dock${note ? " jolt-x" : ""}`} key={`dock${note}`}>
-          <input autoFocus value={text} onChange={(e) => setText(e.target.value)} maxLength={80} placeholder="your rarest answer…" aria-label="Your answer" disabled={busy} />
+          <input autoFocus value={text} onChange={(e) => { setText(e.target.value); setCorrection(""); }} maxLength={80} placeholder="your rarest answer…" aria-label="Your answer" disabled={busy} />
           <button className="btn" disabled={busy}>{busy ? <span className="blink">…</span> : "LAUNCH"}</button>
         </form>
       )}

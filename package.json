@@ -6,6 +6,7 @@
     "build": "next build",
     "start": "next start",
     "test": "node scripts/check.mjs",
+    "benchmark:search": "node scripts/benchmark-search.mjs",
     "migrate": "node --env-file=.env.local scripts/migrate.mjs",
     "simulate": "node scripts/simulate.mjs"
   },
