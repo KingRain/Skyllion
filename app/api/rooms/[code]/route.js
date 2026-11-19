@@ -1,88 +1,34 @@
 import { pool, q } from "@/lib/db";
 import { rule } from "@/lib/judge";
-import { TIERS } from "@/lib/tiers";
-import { cleanSettings, phaseAt, roomPrompts, rollItem, COUNTDOWN_S, REVEAL_S, UUID, nickOf, ITEMS, BOX_CHANCE, BOX_MIN_LEFT_MS, FOG_MS } from "@/lib/rooms";
+import { awardFor } from "@/lib/scoring";
+import { load, standings, roomSnapshot, ACTIVE } from "@/lib/room-state";
+import { publishRoom } from "@/lib/room-events";
+import { cleanSettings, phaseAt, rollItem, COUNTDOWN_S, REVEAL_S, UUID, nickOf, ITEMS, BOX_CHANCE, BOX_MIN_LEFT_MS, FOG_MS } from "@/lib/rooms";
 
-const ACTIVE = "20 seconds"; // clients poll every ~1s; a closed tab drops out of the lobby after this
-
-async function load(code, token) {
-  const { rows: [room] } = await q("SELECT code, name, public, settings, seed, started_at FROM rooms WHERE code = $1", [code]);
-  if (!room) return null;
-  const { rows: players } = await q(
-    `SELECT id::int, name, token, shield_round, fog_round, last_seen > now() - interval '${ACTIVE}' AS active FROM room_players WHERE room_code = $1 ORDER BY id`,
-    [code]
-  );
-  const me = players.find((p) => p.token === token) || null;
-  const host = players.find((p) => p.active) || players[0] || null; // earliest active player hosts
-  return { room, players, me, host, phase: phaseAt(room.started_at, room.settings), prompts: roomPrompts(room.seed, room.settings) };
-}
-
-// Scores everyone can see: answers from finished rounds + power-up effects (which land instantly).
-async function standings(code, phase) {
-  const [{ rows: answers }, { rows: events }] = await Promise.all([
-    q("SELECT player_id::int, round, answer, tier, pts FROM room_answers WHERE room_code = $1", [code]),
-    q("SELECT id::int, round, by_player::int AS by, target::int AS target, item, pts, blocked, created_at FROM room_events WHERE room_code = $1 ORDER BY id", [code]),
-  ]);
-  const open = phase.kind === "round" ? phase.round : Infinity; // the in-flight round's answers stay secret
-  const sum = (id, until) =>
-    answers.filter((a) => a.player_id === id && a.round < until).reduce((s, a) => s + a.pts, 0) + events.filter((e) => e.target === id).reduce((s, e) => s + e.pts, 0);
-  // ponytail: two attacks landing in the same instant could each be capped against the same total; the clamp hides it
-  const score = (id) => Math.max(0, sum(id, open)); // what everyone sees
-  const real = (id) => Math.max(0, sum(id, Infinity)); // incl. this round's hidden answer: caps damage so round-1 attacks still land
-  return { answers, events, open, score, real };
-}
-
-// Polled by every client in the room: full room state, with answers hidden until their round ends.
+// A snapshot for initial inspection/recovery. Live clients subscribe to /stream.
 export async function GET(req, { params }) {
   if (!pool) return Response.json({ error: "Multiplayer needs the database" }, { status: 503 });
   const { code } = await params;
-  const token = req.headers.get("x-player") || "";
-  if (UUID.test(token)) await q("UPDATE room_players SET last_seen = now() WHERE room_code = $1 AND token = $2", [code, token]);
-  const L = await load(code, token);
-  if (!L) return Response.json({ error: "Room not found" }, { status: 404 });
-  const { room, players, me, host, phase, prompts } = L;
-  const { answers, events, open, score, real } = await standings(code, phase);
-
-  const live = phase.kind === "round" || phase.kind === "reveal";
-  const { rows: [box] } = live ? await q("SELECT player_id::int, item, used_at FROM room_items WHERE room_code = $1 AND round = $2", [code, phase.round]) : { rows: [] };
-  const slot = (room.settings.seconds + REVEAL_S) * 1000;
-  const roundStart = live ? new Date(room.started_at).getTime() + phase.round * slot : 0;
-
-  return Response.json({
-    now: Date.now(),
-    room: { code: room.code, name: room.name, public: room.public, settings: room.settings },
-    phase,
-    prompt: phase.round !== undefined ? prompts[phase.round] : null,
-    prompts: phase.kind === "done" ? prompts : prompts.slice(0, (phase.round ?? -1) + 1),
-    me: me?.id ?? null,
-    myReal: me ? real(me.id) : 0, // my true altitude incl. my hidden answer and any hits
-    host: host?.id ?? null,
-    players: players.map((p) => ({
-      id: p.id,
-      name: p.name,
-      active: p.active,
-      score: score(p.id),
-      landed: phase.kind === "round" && answers.some((a) => a.player_id === p.id && a.round === phase.round),
-      shield: live && p.shield_round !== null && p.shield_round >= phase.round,
-      box: Boolean(box && !box.used_at && box.player_id === p.id), // everyone sees who's holding a box, not what's in it
-    })),
-    answers: answers.filter((a) => a.round < open || a.player_id === me?.id),
-    events: events.slice(-40).map(({ created_at, ...e }) => ({ ...e, at: new Date(created_at).getTime() })),
-    item: box && me && box.player_id === me.id ? { round: phase.round, item: box.item, used: Boolean(box.used_at), deadline: roundStart + slot } : null,
-    fogUntil: phase.kind === "round" && me?.fog_round === phase.round ? roundStart + FOG_MS : 0,
-  });
+  const state = await roomSnapshot(code, req.headers.get("x-player") || "");
+  return state ? Response.json(state, { headers: { "Cache-Control": "no-store" } }) : err("Room not found", 404);
 }
 
 export async function POST(req, { params }) {
+  const receivedAt = Date.now();
   if (!pool) return Response.json({ error: "Multiplayer needs the database" }, { status: 503 });
   const { code } = await params;
   const body = await req.json().catch(() => ({}));
   const { action, token } = body;
   if (!UUID.test(token ?? "")) return err("Missing player token");
-  const L = await load(code, token);
+  const L = await load(code, token, receivedAt);
   if (!L) return err("Room not found", 404);
   const { room, players, me, host, phase, prompts } = L;
   const isHost = me && me.id === host?.id;
+
+  const ok = async (x = {}) => {
+    await publishRoom(code);
+    return Response.json({ ok: true, ...x });
+  };
 
   switch (action) {
     case "join": {
@@ -129,20 +75,28 @@ export async function POST(req, { params }) {
     case "answer": {
       if (!me) return err("You're not in this room", 403);
       if (phase.kind !== "round") return err("Round is closed", 409);
+      if (body.round !== phase.round || body.startedAt !== room.started_at.toISOString()) return err("That round has ended", 409);
+      // Capture submission time before the judge/database can add latency.
+      const elapsedMs = receivedAt - (new Date(room.started_at).getTime() + phase.round * (room.settings.seconds + REVEAL_S) * 1000);
       const locked = await q("SELECT 1 FROM room_answers WHERE room_code = $1 AND player_id = $2 AND round = $3", [code, me.id, phase.round]);
       if (locked.rows[0]) return err("You already landed this round", 409);
       const r = await rule(prompts[phase.round].id, body.answer);
       if (r.error) return err(r.error, r.status);
       if (r.suggest) return Response.json({ suggest: r.suggest });
-      // ponytail: submission time is checked when the request arrives, so a slow model verdict can't cost the player the round.
-      if (r.tier || !room.settings.retries)
-        await q(
-          "INSERT INTO room_answers (room_code, player_id, round, answer, tier, pts) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING",
-          [code, me.id, phase.round, String(body.answer).trim().slice(0, 80), r.tier, r.tier ? TIERS[r.tier].pts : 0]
+      const points = awardFor(r.tier, elapsedMs, room.settings.seconds * 1000);
+      let inserted = false;
+      // Submission time is checked when the request arrives, so a slow model verdict can't cost the player the round.
+      if (r.tier || !room.settings.retries) {
+        const saved = await q(
+          "INSERT INTO room_answers (room_code, player_id, round, answer, tier, pts) SELECT $1, $2, $3, $4, $5, $6 FROM rooms WHERE code = $1 AND started_at = $7 ON CONFLICT DO NOTHING RETURNING pts",
+          [code, me.id, phase.round, String(body.answer).trim().slice(0, 80), r.tier, points.pts, room.started_at]
         );
+        if (!saved.rows[0]) return err("This answer was already settled or the race restarted", 409);
+        inserted = true;
+      }
       // Mystery box: only for a quick landing, i.e. while there's still a wait for the others.
       let box = null;
-      if (r.tier && players.filter((p) => p.active).length >= 2 && phase.endsAt - Date.now() >= BOX_MIN_LEFT_MS && Math.random() < BOX_CHANCE) {
+      if (inserted && r.tier && phaseAt(room.started_at, room.settings).round === phase.round && players.filter((p) => p.active).length >= 2 && phase.endsAt - receivedAt >= BOX_MIN_LEFT_MS && Math.random() < BOX_CHANCE) {
         const { score } = await standings(code, phase);
         const mine = score(me.id), rivals = players.filter((p) => p.id !== me.id);
         const standing = rivals.filter((p) => score(p.id) > mine).length / Math.max(1, rivals.length);
@@ -153,7 +107,7 @@ export async function POST(req, { params }) {
           await q("INSERT INTO room_events (room_code, round, by_player, target, item, created_at) VALUES ($1, $2, $3, $3, 'box', $4)", [code, phase.round, me.id, new Date()]);
         }
       }
-      return ok({ tier: r.tier, locked: Boolean(r.tier || !room.settings.retries), box: Boolean(box) });
+      return ok({ tier: r.tier, ...points, locked: Boolean(r.tier || !room.settings.retries), box: Boolean(box) });
     }
     case "use": {
       if (!me) return err("You're not in this room", 403);
@@ -213,5 +167,4 @@ export async function POST(req, { params }) {
   return err("Unknown action");
 }
 
-const ok = (x = {}) => Response.json({ ok: true, ...x });
 const err = (error, status = 400) => Response.json({ error }, { status });

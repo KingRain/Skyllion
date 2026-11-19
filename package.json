@@ -5,10 +5,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node scripts/check.mjs",
+    "test": "node scripts/check.mjs && node --test scripts/realtime.test.mjs",
     "benchmark:search": "node scripts/benchmark-search.mjs",
     "migrate": "node --env-file=.env.local scripts/migrate.mjs",
-    "simulate": "node scripts/simulate.mjs"
+    "simulate": "node scripts/simulate.mjs",
+    "test:realtime": "node --env-file=.env.local scripts/check-realtime.mjs"
   },
   "dependencies": {
     "@neon/config": "^1.14.0",

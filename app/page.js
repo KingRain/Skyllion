@@ -2,12 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import { pickPrompts, pastDays, today } from "@/lib/prompts";
 import { TIERS, GROUNDED, ROUNDS, SECONDS, KM_PER_POINT, zoneFor } from "@/lib/tiers";
+import { awardFor, pointsOf } from "@/lib/scoring";
 import { World, Landscape, Ruler, Hud, Landed, Px, Title, Close, useCountUp, DidYouMean } from "./Sky";
 
 // ---- per-browser progress (guest mode) ----
 const load = () => { try { return JSON.parse(localStorage.getItem("skyllion") || "{}"); } catch { return {}; } };
 const save = (s) => { try { localStorage.setItem("skyllion", JSON.stringify(s)); } catch {} };
-const kmOf = (results) => results.reduce((s, r) => s + (r.tier ? TIERS[r.tier].pts : 0), 0) * KM_PER_POINT;
+const kmOf = (results) => results.reduce((s, r) => s + pointsOf(r), 0) * KM_PER_POINT;
 
 function streak(history) {
   let n = 0;
@@ -114,6 +115,9 @@ function Play({ run, onDone }) {
   const input = useRef(null);
   const requestSeq = useRef(0);
   const prompt = run.prompts[i];
+  const roundStarted = useRef(performance.now());
+  const settleTimer = useRef(null);
+  useEffect(() => () => clearTimeout(settleTimer.current), []);
   const [correction, setCorrection] = useState("");
 
   useEffect(() => {
@@ -123,7 +127,7 @@ function Play({ run, onDone }) {
     }).catch(() => {});
   }, [run]);
 
-  useEffect(() => { requestSeq.current++; setCorrection(""); }, [prompt.id]);
+  useEffect(() => { requestSeq.current++; setCorrection(""); roundStarted.current = performance.now(); setLeft(SECONDS); }, [prompt.id]);
 
   const next = (r) => {
     if (results.current.length > i) return; // round already settled (timer expired mid-request)
@@ -133,7 +137,7 @@ function Play({ run, onDone }) {
     setCorrection("");
     setFlash(r);
     const hold = 1700 + (r.tier ? TIERS[r.tier].lv : 0) * 450; // rarer answers get a longer moment
-    setTimeout(() => {
+    settleTimer.current = setTimeout(() => {
       setFlash(null);
       if (results.current.length >= ROUNDS) return onDone(results.current);
       setI((n) => n + 1);
@@ -146,13 +150,20 @@ function Play({ run, onDone }) {
 
   useEffect(() => {
     if (flash) return;
-    if (left <= 0) return next({ answer: "", tier: null });
-    const t = setTimeout(() => setLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left, flash]); // eslint-disable-line react-hooks/exhaustive-deps
+    const tick = () => {
+      const remaining = SECONDS * 1000 - (performance.now() - roundStarted.current);
+      setLeft(Math.max(0, Math.ceil(remaining / 1000)));
+      // An on-time submission can finish judging after the deadline.
+      if (remaining <= 0 && !busy) next({ answer: "", tier: null, pts: 0 });
+    };
+    const timer = setInterval(tick, 100);
+    return () => clearInterval(timer);
+  }, [prompt.id, flash, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = async (answer) => {
     if (!answer.trim() || busy || flash) return;
+    const elapsedMs = performance.now() - roundStarted.current;
+    if (elapsedMs >= SECONDS * 1000) return next({ answer: "", tier: null, pts: 0 });
     const requestId = ++requestSeq.current;
     setBusy(true);
     setReject("");
@@ -163,7 +174,7 @@ function Play({ run, onDone }) {
       if (requestId !== requestSeq.current) return;
       if (!res.ok) throw new Error(j.error);
       if (j.suggest) setCorrection(j.suggest);
-      else if (j.tier) next({ answer: answer.trim(), tier: j.tier });
+      else if (j.tier) next({ answer: answer.trim(), tier: j.tier, ...awardFor(j.tier, elapsedMs, SECONDS * 1000) });
       else { setReject(`"${answer.trim()}" · GROUNDED · try another`); setText(""); }
     } catch (e) {
       if (requestId === requestSeq.current) setReject(e.message);
@@ -195,10 +206,10 @@ function Play({ run, onDone }) {
         <div className="card" key={i}>
           <div className="rnd">{run.mode === "daily" ? "DAILY ASCENT" : run.mode === "archive" ? `ARCHIVE ${run.day}` : "UNLIMITED"} · {i + 1}/{ROUNDS} · {prompt.cat.toUpperCase()}</div>
           <h2 className="prompt">{prompt.text}</h2>
-          <div className="hint">rarer answers climb higher</div>
+          <div className="hint">rarer answers climb higher · launch early for a speed bonus</div>
         </div>
       )}
-      {flash && <Landed tier={flash.tier} answer={flash.answer} />}
+      {flash && <Landed tier={flash.tier} answer={flash.answer} pts={flash.pts} />}
       {reject && !flash && <p className="reject" key={reject}>{reject}</p>}
       {correction && !flash && !busy && <DidYouMean answer={correction} />}
       {busy && <div className="chip">{text.trim()} ▲</div>}
@@ -244,7 +255,7 @@ function Done({ run, again, home }) {
               <li key={i} className={`lv${t.lv}`} style={{ "--tc": t.color, animationDelay: `${i * 90}ms` }}>
                 <Px name={r.tier || "grounded"} scale={2} fps={4} />
                 <span className="lq"><small>{run.prompts[i].text}</small><b>{r.answer || "out of fuel"}</b></span>
-                <span className="lt">{t.name}<small>+{t.pts}</small></span>
+                <span className="lt">{t.name}<small>+{pointsOf(r)}</small></span>
               </li>
             );
           })}
@@ -319,10 +330,10 @@ function Faq({ close }) {
         <h3>TIERS</h3>
         <ul className="tiers">
           {Object.entries(TIERS).map(([k, t]) => (
-            <li key={k} className={`lv${t.lv}`} style={{ "--tc": t.color }}><Px name={k} scale={2} fps={4} /><b>{t.name}</b><span>+{t.pts} km</span><small>{t.blurb}</small></li>
+            <li key={k} className={`lv${t.lv}`} style={{ "--tc": t.color }}><Px name={k} scale={2} fps={4} /><b>{t.name}</b><span>up to +{t.pts} km</span><small>{t.blurb}</small></li>
           ))}
         </ul>
-        <p>1 point = 1 km. A perfect day is 700 km: past the Kármán line and the ISS, out to escape velocity.</p>
+        <p>Each valid answer earns 80% of its tier's maximum, plus a speed bonus worth up to 20%. The bonus decreases as the round runs down. Time spent waiting for the judge does not reduce it. 1 point = 1 km. A perfect day is 700 km: past the Kármán line and the ISS, out to escape velocity.</p>
         <h3>WHO DECIDES RARITY?</h3>
         <p>An AI decision model (Cloudflare's clef-flash) judges whether each answer fits and how unusual it is. Verdicts are cached, so everyone gets the same ruling for the same answer.</p>
         <h3>WHEN DOES THE DAILY RESET?</h3>

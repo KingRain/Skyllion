@@ -79,10 +79,10 @@ export function Landscape({ dim = false }) {
 
 // focus = altitude the camera centres on. me / others = { name, km, hue?, landed? }. ghosts = { label, km }.
 // lines = { base, now } draws tier lines from `base`, lighting up the ones `now` has passed.
-export function World({ focus = 0, me, others = [], ghosts = [], lines, dim, shake }) {
+export function World({ focus = 0, me, others = [], ghosts = [], lines, dim, shake, smooth = false }) {
   const camY = WORLD_H - GROUND - yOf(focus);
   return (
-    <div className={`scene${shake ? " shake" : ""}`} aria-hidden>
+    <div className={`scene${shake ? " shake" : ""}${smooth ? " smooth-flight" : ""}`} aria-hidden>
       <div className="world" style={{ height: WORLD_H, transform: `translateY(calc(58dvh - ${camY}px))`, backgroundImage: SKY }}>
         <div className="stars" style={{ bottom: GROUND + yOf(35) }} />
         <div className="stars s2" style={{ bottom: GROUND + yOf(60) }} />
@@ -103,7 +103,7 @@ export function World({ focus = 0, me, others = [], ghosts = [], lines, dim, sha
           const km = lines.base + TIERS[k].pts, passed = lines.now >= km;
           return (
             <div key={k} className={`tierline${passed ? " passed" : ""}`} style={{ bottom: GROUND + yOf(km), "--tc": TIERS[k].color }}>
-              <span className="tag"><Px name={k} scale={1.25} />+{TIERS[k].pts} {TIERS[k].name}</span>
+              <span className="tag"><Px name={k} scale={1.25} />max +{TIERS[k].pts} {TIERS[k].name}</span>
             </div>
           );
         })}
@@ -134,11 +134,11 @@ function Pilot({ me, name, km, hue = 0, left, landed, hit, shield, box }) {
 }
 
 // ---------- side ruler: everyone's altitude at a glance, even when off-screen ----------
-export function Ruler({ max = 700, me, others = [], ghosts = [], lines }) {
+export function Ruler({ max = 700, me, others = [], ghosts = [], lines, smooth = false }) {
   const pct = (km) => `${(yOf(Math.min(km, max)) / yOf(max)) * 100}%`;
   const ticks = [0, 12, 50, 100, 408, 700, 1000, 1500].filter((k) => k <= max);
   return (
-    <div className="ruler" aria-hidden>
+    <div className={smooth ? "ruler smooth-flight" : "ruler"} aria-hidden>
       {ticks.map((k) => <i key={k} className="tick" style={{ bottom: pct(k) }}><b>{k}</b></i>)}
       {lines && LINE_TIERS.map((k) => <i key={k} className={`tnotch${lines.now >= lines.base + TIERS[k].pts ? " passed" : ""}`} style={{ bottom: pct(lines.base + TIERS[k].pts), "--tc": TIERS[k].color }} />)}
       {ghosts.map((g) => <i key={g.label} className="gdot" style={{ bottom: pct(g.km) }}><b>{g.label.split(" ").at(-1)}</b></i>)}
@@ -173,7 +173,7 @@ export function Hud({ km, pips = [], rounds, left, total }) {
 }
 
 // ---------- the payoff: the rarer the tier, the bigger the show ----------
-export function Landed({ tier, answer, mini }) {
+export function Landed({ tier, answer, mini, pts }) {
   const t = tier ? TIERS[tier] : GROUNDED;
   const lv = t.lv;
   return (
@@ -190,7 +190,8 @@ export function Landed({ tier, answer, mini }) {
       </div>
       <div className="tname">{lv >= 4 ? "ONE IN A SKYLLION" : t.name}</div>
       {answer !== undefined && <div className="tans">{answer || "out of fuel"}</div>}
-      <div className="tpts">+<b>{t.pts}</b> km</div>
+      <div className="tpts">+<b>{pts ?? t.pts}</b> km</div>
+      {tier && pts !== undefined && <div className="tspeed">includes +{Math.max(0, pts - Math.round(t.pts * .8))} km speed bonus</div>}
       {!mini && <div className="tsub">{t.blurb}</div>}
     </div>
   );

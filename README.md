@@ -17,9 +17,10 @@ Every day everyone gets the same **7 prompts** ("Name a moon in our solar system
 
 - Obvious answers barely get you off the ground. Rare ones send you into orbit.
 - A wrong or off-category answer is **Grounded** and earns nothing, but you can try again while the fuel bar lasts.
+- A valid answer earns **80% of its tier maximum**, plus up to **20% for speed**. The bonus decreases linearly with time spent before submission, rounded to whole points. A 60-point Jet Stream submitted halfway through the round earns 48 base + 6 speed = **54 km**. Waiting for the judge never reduces the bonus.
 - **1 point = 1 km of altitude.** A perfect day is 700 km, past the ISS and into the exosphere.
 
-| Tier | Points | What it means |
+| Tier | Maximum points | What it means |
 |---|---:|---|
 | 📄 Paper Plane | 10 | Everyone folded this one |
 | 🌀 Barrel Roll | 15 | A cheeky pun or technicality. Show-off. |
@@ -68,7 +69,11 @@ You pass through atmosphere zones as you climb: Troposphere → Stratosphere →
 
 `lib/tiers.js` maps those probabilities to a tier. The cut-offs were fitted from real model output (run `npm run simulate` to see them). Every verdict is cached in Neon, so the same answer always gets the same ruling and the model is only asked once. That also makes repeat answers instant.
 
-**Multiplayer without a game server.** Every room's clock is derived from a single `started_at` timestamp, so no background worker or WebSocket server is needed. Clients poll the room once a second, and the server hides each round's answers until the round closes.
+**Live multiplayer.** Each browser opens one authenticated, fetch-based server-sent event stream. Successful room actions publish PostgreSQL notifications; one direct `LISTEN` connection per server process fans those notifications out to the appropriate streams. A fresh, personalized snapshot keeps other pilots' current answers and held items private. Round transitions use scheduled deadlines derived from `started_at`, and planes, the camera and ruler animate together from their current positions. The public room directory still refreshes every four seconds; active races do not poll.
+
+The stream writes presence every ten seconds, drops absent pilots from the active list after 35 seconds, and reconnects with a full snapshot before the 60-second Vercel function limit. The client also reconnects after transport failure, a stalled heartbeat or returning to the tab. A monotonic local clock drives the countdown independently of snapshot arrival times. Notifications contain room codes only; player tokens travel in request headers, never stream URLs.
+
+**Submission scoring.** Dogfight captures the server's request-arrival time and verifies the race and round before judging. Duplicate submissions settle once. Solo uses the same scoring function with a monotonic timer; accepted requests can finish judging after the deadline. Existing saved scores retain their original values. This is Skyllion's explicit 80/20 rule, rather than a claim to reproduce Krillion's unpublished scoring formula.
 
 ## Run it locally
 
@@ -82,7 +87,7 @@ npm run migrate                 # creates the tables
 npm run dev                     # http://localhost:3000
 ```
 
-Set the same `DATABASE_URL`, `CF_ACCOUNT_ID` and `CF_API_TOKEN` on the Vercel project. Optional: `CF_MODEL` (default `clef-flash`).
+Set the same `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `CF_ACCOUNT_ID` and `CF_API_TOKEN` on the Vercel project. Optional: `CF_MODEL` (default `clef-flash`). The room listener requires the direct/unpooled URL because Neon's transaction pooler does not support `LISTEN`. No additional service or schema migration is required for room streaming.
 
 ## Scripts
 
@@ -90,7 +95,8 @@ Set the same `DATABASE_URL`, `CF_ACCOUNT_ID` and `CF_API_TOKEN` on the Vercel pr
 |---|---|
 | `npm run dev` | Dev server |
 | `npm run migrate` | Apply `db/schema.sql` to Neon (direct connection) |
-| `npm test` | Self-checks: tier mapping, daily prompts, room clock, settings clamping |
+| `npm test` | Rules, scoring bounds/decay, streaming parser, subscription lifecycle and interpolation checks |
+| `npm run test:realtime` | Integration test against the local server on port 3001: temporary private room, two players, spectator, notifications, reveals, scoring, reconnect, reset and cleanup. Set `DATABASE_URL_UNPOOLED` in `.env.local`. |
 | `node scripts/pixel-art.mjs` | Regenerate every sprite in `public/px/` from the ASCII pixel grids (no image tools needed) |
 | `npm run simulate` | Send a batch of sample answers to the judge and print raw scores and tiers |
 

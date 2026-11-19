@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, DEFAULTS, ITEMS } from "@/lib/rooms";
 import { TIERS, GROUNDED, KM_PER_POINT, zoneFor } from "@/lib/tiers";
-import { World, Landscape, Ruler, Hud, Landed, Px, Title, Close, DidYouMean } from "../Sky";
+import { Flight } from "./Flight";
+import { useRoomStream } from "./useRoomStream";
+import { World, Landscape, Hud, Landed, Px, Title, Close, DidYouMean } from "../Sky";
 
 // ---- identity: a private random token per browser + a call sign, no account needed ----
 const uuid = () =>
@@ -88,7 +90,7 @@ function Hangar({ token, nick, setNick }) {
         <div className="intro compact">
           <Title small />
           <p className="tagline">DOGFIGHT</p>
-          <p className="subline">same prompts · same clock · one sky. rarest answers climb highest.</p>
+          <p className="subline">same prompts · same clock · one sky. rare answers and quick landings climb highest.</p>
         </div>
         <div className="panel"><CallSign nick={nick} setNick={setNick} /></div>
         {err && <p className="reject static">{err}</p>}
@@ -160,28 +162,12 @@ function SettingsForm({ value, onSave, cta, disabled, readOnly }) {
 
 function Room({ code, token, nick, setNick }) {
   const router = useRouter();
-  const [s, setS] = useState(null); // server state
-  const [offset, setOffset] = useState(0); // server clock - local clock
-  const [now, setNow] = useState(Date.now());
+  const { state: s, now: serverNow, status, error, missing } = useRoomStream(code, token);
   const [err, setErr] = useState("");
-  const [missing, setMissing] = useState(false);
-
-  const refresh = () =>
-    call(`/api/rooms/${code}`, null, token)
-      .then((j) => { setS(j); setOffset(j.now - Date.now()); setMissing(false); })
-      .catch((e) => (e.status === 404 ? setMissing(true) : setErr(e.message)));
-
-  useEffect(() => {
-    refresh();
-    // ponytail: 1s polling, switch to Neon Realtime live queries if rooms get big or polling costs bite
-    const poll = setInterval(refresh, 1000);
-    const tick = setInterval(() => setNow(Date.now()), 250);
-    return () => { clearInterval(poll); clearInterval(tick); };
-  }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = async (action, extra) => {
     setErr("");
-    try { const r = await call(`/api/rooms/${code}`, { action, ...extra }, token); await refresh(); return r; }
+    try { const r = await call(`/api/rooms/${code}`, { action, ...extra }, token); return r; }
     catch (e) { setErr(e.message); }
   };
   const leave = async () => { await act("leave"); router.push("/party"); };
@@ -189,23 +175,20 @@ function Room({ code, token, nick, setNick }) {
   if (missing) return (
     <><World focus={0.3} dim /><section className="page"><div className="panel"><h2 className="chroma">ROOM {code} NOT FOUND</h2><a className="btn" href="/party">BACK TO THE HANGAR</a></div></section></>
   );
-  if (!s) return <><World focus={0.3} /><p className="center-note blink">contacting tower…</p></>;
+  if (!s) return <><World focus={0.3} /><p className="center-note" role="status">{error || "contacting tower…"}</p></>;
 
   const { room, phase, players, me, host, answers } = s;
   const isHost = me !== null && me === host;
-  const left = phase.endsAt ? Math.max(0, Math.ceil((phase.endsAt - (now + offset)) / 1000)) : 0;
+  const left = phase.endsAt ? Math.max(0, Math.ceil((phase.endsAt - serverNow) / 1000)) : 0;
   const mine = phase.kind === "round" ? answers.find((a) => a.player_id === me && a.round === phase.round) : null;
   const seat = Object.fromEntries(players.map((p, i) => [p.id, i]));
   const kmFor = (p) => (p.id === me ? s.myReal ?? p.score : p.score) * KM_PER_POINT;
   const onRunway = phase.kind === "lobby" || phase.kind === "countdown";
   const pilots = players.map((p) => ({ id: p.id, name: p.id === me ? "YOU" : p.name, km: onRunway ? 0 : kmFor(p), hue: hueOf(seat[p.id]), landed: p.landed }));
   const mePilot = pilots.find((p) => p.id === me);
-  const others = pilots.filter((p) => p.id !== me);
-  const focus = mePilot ? mePilot.km : Math.max(0, ...pilots.map((p) => p.km));
   const max = Math.max(700, room.settings.rounds * 100);
   const myBase = players.find((p) => p.id === me)?.score ?? 0;
   const ranked = [...players].sort((a, b) => b.score - a.score);
-  const serverNow = now + offset;
   const recent = (s.events || []).filter((e) => e.item !== "slip+" && serverNow - e.at < 4500);
   const hitIds = new Set(recent.filter((e) => e.pts < 0 && !e.blocked && serverNow - e.at < 1600).map((e) => e.target));
   const byId = Object.fromEntries(players.map((p) => [p.id, p]));
@@ -214,16 +197,12 @@ function Room({ code, token, nick, setNick }) {
 
   return (
     <>
-      <World
-        focus={onRunway ? 0.3 : focus}
-        me={mePilot && deco(mePilot)}
-        others={others.map(deco)}
-        lines={phase.kind === "round" && mePilot ? { base: myBase * KM_PER_POINT, now: mePilot.km } : null}
-        dim={phase.kind === "lobby" || phase.kind === "done"}
-        shake={(mine && TIERS[mine.tier]?.lv >= 4) || hitIds.has(me)}
-      />
+      <Flight key={s.startedAt ?? "lobby"} pilots={pilots.map(deco)} me={me} onRunway={onRunway}
+        lines={phase.kind === "round" && mePilot ? { base: myBase * KM_PER_POINT } : null}
+        max={max} dim={phase.kind === "lobby" || phase.kind === "done"}
+        shake={(mine && TIERS[mine.tier]?.lv >= 4) || hitIds.has(me)} />
       {hitIds.has(me) && <div className="hitflash" />}
-      {!onRunway && <Ruler max={max} me={mePilot} others={others} lines={phase.kind === "round" && mePilot ? { base: myBase * KM_PER_POINT, now: mePilot.km } : null} />}
+      {status !== "live" && <p className="connection-status" role="status">Reconnecting to tower…</p>}
 
       {phase.kind === "round" || phase.kind === "reveal" ? (
         <Hud
@@ -322,7 +301,7 @@ function Round({ s, left, act, mine, fogLeft, boxOpen }) {
     setCorrection("");
     let r;
     try {
-      r = await act("answer", { answer });
+      r = await act("answer", { answer, round: phase.round, startedAt: s.startedAt });
     } finally {
       if (requestId === requestSeq.current) setBusy(false);
     }
@@ -354,7 +333,7 @@ function Round({ s, left, act, mine, fogLeft, boxOpen }) {
           <div className="hint">{landed.length ? `landed: ${landed.join(", ")}` : "nobody has landed yet"}</div>
         </div>
       )}
-      {mine && !(boxOpen && !big) && <Landed tier={mine.tier} answer={mine.answer} mini={!big} />}
+      {mine && !(boxOpen && !big) && <Landed tier={mine.tier} answer={mine.answer} pts={mine.pts} mini={!big} />}
       {note && !mine && <p className="reject" key={note}>{note}</p>}
       {correction && !mine && !busy && <DidYouMean answer={correction} />}
       {busy && <div className="chip">{text.trim()} ▲</div>}

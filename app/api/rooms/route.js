@@ -8,7 +8,7 @@ export async function GET() {
   if (!pool) return Response.json({ error: "Multiplayer needs the database" }, { status: 503 });
   const { rows } = await q(
     `SELECT r.code, r.name, r.settings, count(p.id)::int AS players
-       FROM rooms r JOIN room_players p ON p.room_code = r.code AND p.last_seen > now() - interval '20 seconds'
+       FROM rooms r JOIN room_players p ON p.room_code = r.code AND p.last_seen > now() - interval '35 seconds'
       WHERE r.public AND r.started_at IS NULL AND r.created_at > now() - interval '3 hours'
       GROUP BY r.code
      HAVING count(p.id) < (r.settings->>'maxPlayers')::int
