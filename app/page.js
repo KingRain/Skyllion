@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { pickPrompts, pastDays, today } from "@/lib/prompts";
 import { TIERS, GROUNDED, ROUNDS, SECONDS, KM_PER_POINT, zoneFor } from "@/lib/tiers";
-import { World, Ruler, Hud, Landed, Px, Title, Close, useCountUp, DidYouMean } from "./Sky";
+import { World, Landscape, Ruler, Hud, Landed, Px, Title, Close, useCountUp, DidYouMean } from "./Sky";
 
 // ---- per-browser progress (guest mode) ----
 const load = () => { try { return JSON.parse(localStorage.getItem("skyllion") || "{}"); } catch { return {}; } };
@@ -49,13 +49,13 @@ export default function Home() {
   const playedToday = store.history?.[today()] !== undefined;
 
   return (
-    <div className="app">
-      {view === "home" && <World focus={0.3} me={{ km: 0 }} />}
-      {["me", "archive", "faq", "credits"].includes(view) && <World focus={14} me={{ km: 14 }} dim />}
+    <div className={`app${view === "home" ? " home" : ""}`}>
+      {view === "home" && <Landscape />}
+      {["me", "archive", "faq", "credits"].includes(view) && <Landscape dim />}
 
       <header className="topbar">
-        <button className="logo" onClick={() => go("home")}><Px name="plane" scale={1.5} fps={12} /> SKYLLION</button>
-        <button className="iconbtn" aria-label="Menu" onClick={() => setMenu(true)}>≡</button>
+        <button className="iconbtn" aria-label="Menu" aria-expanded={menu} onClick={() => setMenu(true)}><span className="menu-glyph" aria-hidden="true"><i /><i /><i /></span></button>
+        {view !== "home" && <button className="logo" onClick={() => go("home")}>SKYLLION</button>}
       </header>
 
       {menu && (
@@ -75,26 +75,21 @@ export default function Home() {
       )}
 
       {view === "home" && (
-        <section className="intro">
-          <Title />
-          <p className="tagline">one in a skyllion</p>
-          <p className="subline">7 prompts · {SECONDS}s each · the rarer the answer, the higher you climb</p>
-          <p className="blink">ascending…</p>
-          {playedToday ? (
-            <>
-              <p className="subline">Today: <b className="glowtxt">{store.history[today()] * KM_PER_POINT} km</b> · {zoneFor(store.history[today()] * KM_PER_POINT)}</p>
-              <button className="btn bob" onClick={() => start("unlimited")}>▲ Keep flying</button>
-            </>
-          ) : (
-            <button className="btn bob" onClick={() => start("daily")}>▲ Take off</button>
-          )}
-          <div className="row gap">
-            <a className="btn ghost" href="/party">Dogfight</a>
-            <button className="btn ghost" onClick={() => go("faq")}>How to play</button>
+        <main className="home-screen">
+          <div className="home-heading">
+            <div className="title-plaque"><Title /></div>
+            <p className="home-description">7 prompts - {SECONDS}s each - the rarer the answer, higher you climb</p>
           </div>
-          <p className="streak">🔥 {streak(store.history || {})} day streak</p>
-          <button className="linkbtn" onClick={() => go("credits")}>credits</button>
-        </section>
+          <div className="home-actions">
+            {playedToday && <p className="daily-result">Today: {store.history[today()] * KM_PER_POINT} km · {zoneFor(store.history[today()] * KM_PER_POINT)}</p>}
+            <a className="flight-button dogfight-button" href="/party"><span className="beta-label">BETA</span>Dogfight</a>
+            <button className="flight-button ascent-button" onClick={() => start(playedToday ? "unlimited" : "daily")}>{playedToday ? "Keep flying" : "Begin ascent"}</button>
+          </div>
+          <footer className="home-footer">
+            <span>RISE: #{pastDays().length + 1}</span>
+            {streak(store.history || {}) > 0 && <span>{streak(store.history || {})} day streak</span>}
+          </footer>
+        </main>
       )}
 
       {view === "play" && run && <Play key={run.day + run.mode + run.prompts[0].id} run={run} onDone={finish} />}
@@ -369,7 +364,7 @@ function Credits({ close }) {
           <li><b>Answer judge</b><span>clef-flash on Cloudflare Workers AI</span></li>
           <li><b>Database</b><span>Neon Postgres</span></li>
           <li><b>Hosting</b><span>Vercel · Next.js</span></li>
-          <li><b>Font</b><span>VT323 by Peter Hull</span></li>
+          <li><b>Fonts</b><span>Coral Pixels &amp; Pixelify Sans</span></li>
           <li><b>Pixel art</b><span>Original, drawn as ASCII grids</span></li>
           <li><b>Inspired by</b><span><a href="https://krillion.io" target="_blank" rel="noopener noreferrer">Krillion</a>, the daily dive. Skyllion flips it upward.</span></li>
         </ul>

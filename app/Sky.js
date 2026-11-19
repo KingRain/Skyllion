@@ -73,6 +73,10 @@ export function Px({ name, scale = 3, fps = 6, className = "", style, label }) {
 }
 
 // ---------- world ----------
+export function Landscape({ dim = false }) {
+  return <div className={`landscape${dim ? " subdued" : ""}`} aria-hidden="true" />;
+}
+
 // focus = altitude the camera centres on. me / others = { name, km, hue?, landed? }. ghosts = { label, km }.
 // lines = { base, now } draws tier lines from `base`, lighting up the ones `now` has passed.
 export function World({ focus = 0, me, others = [], ghosts = [], lines, dim, shake }) {

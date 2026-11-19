@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, DEFAULTS, ITEMS } from "@/lib/rooms";
 import { TIERS, GROUNDED, KM_PER_POINT, zoneFor } from "@/lib/tiers";
-import { World, Ruler, Hud, Landed, Px, Title, Close, DidYouMean } from "../Sky";
+import { World, Landscape, Ruler, Hud, Landed, Px, Title, Close, DidYouMean } from "../Sky";
 
 // ---- identity: a private random token per browser + a call sign, no account needed ----
 const uuid = () =>
@@ -83,7 +83,7 @@ function Hangar({ token, nick, setNick }) {
 
   return (
     <>
-      <World focus={11} me={{ km: 11 }} others={[{ id: "wing-a", km: 10.4, hue: 120 }, { id: "wing-b", km: 11.6, hue: 220 }]} dim />
+      <Landscape dim />
       <section className="page">
         <div className="intro compact">
           <Title small />
