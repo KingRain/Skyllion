@@ -194,13 +194,12 @@ function Play({ run, onDone }) {
 
   const done = results.current;
   const km = kmOf(done);
-  const base = kmOf(done.slice(0, i));
   const lv = flash?.tier ? TIERS[flash.tier].lv : -1;
 
   return (
     <>
-      <World focus={km} me={{ km, name: "YOU" }} ghosts={ghosts} lines={{ base, now: km }} shake={lv >= 4} />
-      <Ruler me={{ km }} ghosts={ghosts} lines={{ base, now: km }} />
+      <World focus={km} me={{ km, name: "YOU" }} ghosts={ghosts} shake={lv >= 4} />
+      <Ruler me={{ km }} ghosts={ghosts} />
       <Hud km={km} rounds={ROUNDS} pips={done.map((r) => r.tier)} left={left} total={flash ? 0 : SECONDS} />
       {!flash && (
         <div className="card" key={i}>

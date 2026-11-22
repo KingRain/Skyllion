@@ -187,7 +187,6 @@ function Room({ code, token, nick, setNick }) {
   const pilots = players.map((p) => ({ id: p.id, name: p.id === me ? "YOU" : p.name, km: onRunway ? 0 : kmFor(p), hue: hueOf(seat[p.id]), landed: p.landed }));
   const mePilot = pilots.find((p) => p.id === me);
   const max = Math.max(700, room.settings.rounds * 100);
-  const myBase = players.find((p) => p.id === me)?.score ?? 0;
   const ranked = [...players].sort((a, b) => b.score - a.score);
   const recent = (s.events || []).filter((e) => e.item !== "slip+" && serverNow - e.at < 4500);
   const hitIds = new Set(recent.filter((e) => e.pts < 0 && !e.blocked && serverNow - e.at < 1600).map((e) => e.target));
@@ -198,7 +197,6 @@ function Room({ code, token, nick, setNick }) {
   return (
     <>
       <Flight key={s.startedAt ?? "lobby"} pilots={pilots.map(deco)} me={me} onRunway={onRunway}
-        lines={phase.kind === "round" && mePilot ? { base: myBase * KM_PER_POINT } : null}
         max={max} dim={phase.kind === "lobby" || phase.kind === "done"}
         shake={(mine && TIERS[mine.tier]?.lv >= 4) || hitIds.has(me)} />
       {hitIds.has(me) && <div className="hitflash" />}

@@ -5,7 +5,7 @@ import { interpolateFlight } from "@/lib/room-stream";
 
 // A single animation clock moves every plane and the camera together. New targets
 // start from the current rendered position, including mid-flight attacks/reconnects.
-export function Flight({ pilots, me, onRunway, lines, max, dim, shake }) {
+export function Flight({ pilots, me, onRunway, max, dim, shake }) {
   const targets = Object.fromEntries(pilots.map((p) => [p.id, p.km]));
   const current = useRef(targets);
   const [positions, setPositions] = useState(targets);
@@ -30,9 +30,8 @@ export function Flight({ pilots, me, onRunway, lines, max, dim, shake }) {
   const own = moving.find((p) => p.id === me);
   const others = moving.filter((p) => p.id !== me);
   const focus = onRunway ? 0.3 : own?.km ?? Math.max(0, ...moving.map((p) => p.km));
-  const marks = lines && own ? { base: lines.base, now: own.km } : null;
   return <>
-    <World smooth focus={focus} me={own} others={others} lines={marks} dim={dim} shake={shake} />
-    {!onRunway && <Ruler smooth max={max} me={own} others={others} lines={marks} />}
+    <World smooth focus={focus} me={own} others={others} dim={dim} shake={shake} />
+    {!onRunway && <Ruler smooth max={max} me={own} others={others} />}
   </>;
 }

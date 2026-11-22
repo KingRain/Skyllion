@@ -18,38 +18,12 @@ export function yOf(km) {
   return ANCHORS.at(-1)[1];
 }
 
-// Banded (stepped) sky gradient, pixel-art style, built once.
-const SKY_COLORS = [[0, "#bfe9ff"], [1, "#8fd0ff"], [12, "#5aa6f0"], [50, "#2f5fc8"], [85, "#2b2a8a"], [100, "#1b1255"], [408, "#0d0c2e"], [700, "#070818"], [1500, "#03040b"]];
-const mix = (a, b, t) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, "0")).join("");
-const SKY = (() => {
-  const stops = [];
-  for (let i = 1; i < SKY_COLORS.length; i++) {
-    const [k0, c0] = SKY_COLORS[i - 1], [k1, c1] = SKY_COLORS[i];
-    const y0 = yOf(k0), y1 = yOf(k1), n = 6;
-    for (let b = 0; b < n; b++) stops.push(`${mix(c0, c1, b / n)} ${GROUND + y0 + ((y1 - y0) * b) / n}px ${GROUND + y0 + ((y1 - y0) * (b + 1)) / n}px`);
-  }
-  return `linear-gradient(to top, transparent 0 ${GROUND}px, ${stops.join(", ")}, #03040b 0)`;
-})();
-
 const LABELS = [
   [1, "TROPOSPHERE", 1], [10, "cruising altitude"], [12, "STRATOSPHERE", 1], [25, "ozone layer"], [39, "highest skydive"],
   [50, "MESOSPHERE", 1], [76, "meteors burn up here"], [85, "THERMOSPHERE", 1], [100, "KÁRMÁN LINE · SPACE", 1],
   [200, "satellite belt"], [330, "aurora"], [408, "ISS ORBIT", 1], [600, "EXOSPHERE", 1], [700, "ESCAPE VELOCITY", 1],
   [1000, "DEEP SPACE", 1], [1500, "THE EDGE", 1],
 ];
-// [sprite, km, left %, scale, motion, duration s, delay s]
-const DECOR = [
-  ["tower", 0, 5, 5, "still"],
-  ["bird", 0.25, 0, 3, "drift", 34, -8], ["bird", 0.32, 0, 2, "drift", 28, -20], ["cloud", 0.55, 0, 5, "drift", 140, -40],
-  ["balloon", 0.85, 74, 5, "bob"], ["cloudlet", 1.3, 0, 5, "drift", 95, -70], ["cloud", 2.4, 0, 6, "drift", 170, -120],
-  ["bird", 3, 0, 2, "drift", 40, -5], ["cloud", 4.6, 0, 4, "drift", 120, -10], ["cloudlet", 6.5, 0, 4, "drift", 80, -50],
-  ["airliner", 10, 0, 4, "drift", 45, -18], ["cloudlet", 11.5, 0, 3, "drift", 140, -100],
-  ["wballoon", 30, 68, 5, "bob"], ["meteor", 60, 20, 4, "streak", 6, -1], ["meteor", 70, 60, 3, "streak", 9, -5], ["meteor", 80, 35, 3, "streak", 7, -3],
-  ["satellite", 200, 64, 5, "spin"], ["iss", 408, 0, 5, "drift", 70, -30], ["satellite", 520, 14, 4, "spin"],
-  ["moon", 760, 66, 8, "still"], ["ufo", 900, 22, 5, "bob"], ["planet", 1200, 58, 7, "bob"],
-];
-const LINE_TIERS = ["paper", "flyer", "jet", "deep", "skyllion"]; // Barrel Roll isn't a rarity step, so no line
-
 // ---------- sprite ----------
 export function Px({ name, scale = 3, fps = 6, className = "", style, label }) {
   const m = PX[name];
@@ -78,35 +52,16 @@ export function Landscape({ dim = false }) {
 }
 
 // focus = altitude the camera centres on. me / others = { name, km, hue?, landed? }. ghosts = { label, km }.
-// lines = { base, now } draws tier lines from `base`, lighting up the ones `now` has passed.
-export function World({ focus = 0, me, others = [], ghosts = [], lines, dim, shake, smooth = false }) {
+export function World({ focus = 0, me, others = [], ghosts = [], dim, shake, smooth = false }) {
   const camY = WORLD_H - GROUND - yOf(focus);
   return (
     <div className={`scene${shake ? " shake" : ""}${smooth ? " smooth-flight" : ""}`} aria-hidden>
-      <div className="world" style={{ height: WORLD_H, transform: `translateY(calc(58dvh - ${camY}px))`, backgroundImage: SKY }}>
-        <div className="stars" style={{ bottom: GROUND + yOf(35) }} />
-        <div className="stars s2" style={{ bottom: GROUND + yOf(60) }} />
-        <div className="aurora" style={{ bottom: GROUND + yOf(110), height: yOf(380) - yOf(110) }} />
-        <div className="karman" style={{ bottom: GROUND + yOf(100) }} />
+      <div className="world" style={{ height: WORLD_H, transform: `translateY(calc(58dvh - ${camY}px))` }}>
         {LABELS.map(([km, text, major]) => (
           <div key={km} className={`amb${major ? " major" : ""}`} style={{ bottom: GROUND + yOf(km) }}>
             <span className="dash">— </span>{km} km {major ? "· " : "· "}{text}
           </div>
         ))}
-        {DECOR.map(([name, km, left, scale, motion, dur, delay], i) => (
-          <div key={i} className={`decor ${motion}`} style={{ bottom: GROUND + yOf(km), left: motion === "drift" ? 0 : `${left}%`, "--dur": `${dur}s`, "--delay": `${delay}s` }}>
-            <Px name={name} scale={scale} fps={name === "bird" ? 5 : 3} />
-          </div>
-        ))}
-        <div className="ground" style={{ height: GROUND }}><div className="runway" /></div>
-        {lines && LINE_TIERS.map((k) => {
-          const km = lines.base + TIERS[k].pts, passed = lines.now >= km;
-          return (
-            <div key={k} className={`tierline${passed ? " passed" : ""}`} style={{ bottom: GROUND + yOf(km), "--tc": TIERS[k].color }}>
-              <span className="tag"><Px name={k} scale={1.25} />max +{TIERS[k].pts} {TIERS[k].name}</span>
-            </div>
-          );
-        })}
         {ghosts.map((g) => (
           <div key={g.label} className="ghostline" style={{ bottom: GROUND + yOf(g.km) }}><span>{g.label} · {g.km} km</span></div>
         ))}
@@ -134,13 +89,12 @@ function Pilot({ me, name, km, hue = 0, left, landed, hit, shield, box }) {
 }
 
 // ---------- side ruler: everyone's altitude at a glance, even when off-screen ----------
-export function Ruler({ max = 700, me, others = [], ghosts = [], lines, smooth = false }) {
+export function Ruler({ max = 700, me, others = [], ghosts = [], smooth = false }) {
   const pct = (km) => `${(yOf(Math.min(km, max)) / yOf(max)) * 100}%`;
   const ticks = [0, 12, 50, 100, 408, 700, 1000, 1500].filter((k) => k <= max);
   return (
     <div className={smooth ? "ruler smooth-flight" : "ruler"} aria-hidden>
       {ticks.map((k) => <i key={k} className="tick" style={{ bottom: pct(k) }}><b>{k}</b></i>)}
-      {lines && LINE_TIERS.map((k) => <i key={k} className={`tnotch${lines.now >= lines.base + TIERS[k].pts ? " passed" : ""}`} style={{ bottom: pct(lines.base + TIERS[k].pts), "--tc": TIERS[k].color }} />)}
       {ghosts.map((g) => <i key={g.label} className="gdot" style={{ bottom: pct(g.km) }}><b>{g.label.split(" ").at(-1)}</b></i>)}
       {others.map((p) => <i key={p.id ?? p.name} className="odot" style={{ bottom: pct(p.km), "--hue": `${p.hue || 0}deg` }}>{p.name && <b>{p.name.slice(0, 8)}</b>}</i>)}
       {me && <i className="mdot" style={{ bottom: pct(me.km) }} />}
