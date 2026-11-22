@@ -16,7 +16,6 @@ export const viewport = { width: "device-width", initialScale: 1, viewportFit: "
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <head><link rel="preload" href="/game-background.svg" as="image" type="image/svg+xml" /></head>
       <body className={`${display.variable} ${text.variable}`}>{children}<Analytics /></body>
     </html>
   );

@@ -251,7 +251,7 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 
 /* The supplied tall artwork travels with the shared flight camera. */
 .world { background: #10152c; }
-.world-art { position: absolute; inset: 0; background: url("/game-background.svg") center bottom / 100% 100% no-repeat; image-rendering: pixelated; pointer-events: none; }
+.world-art { position: absolute; inset: 0; background: url("/game-background.png") center bottom / 100% 100% no-repeat; image-rendering: pixelated; pointer-events: none; }
 
 /* Mobile: symmetric gutters, safe-area spacing, and controls that can shrink. */
 @media (max-width: 600px) {
@@ -333,3 +333,6 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   .flight-ready .world-art { animation: none; }
   .scene.flight-ready ~ .hud, .scene.flight-ready ~ .card, .scene.flight-ready ~ .dock, .scene.flight-ready ~ .ruler { animation: none; }
 }
+
+/* Avoid permanently promoting the entire tall world to a GPU texture. */
+.world { will-change: auto; }

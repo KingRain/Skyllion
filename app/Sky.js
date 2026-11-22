@@ -64,7 +64,7 @@ export function World({ focus = 0, me, others = [], ghosts = [], dim, shake, smo
   useEffect(() => {
     let active = true;
     const image = new Image();
-    image.src = "/game-background.svg";
+    image.src = "/game-background.png";
     image.decode().catch(() => {}).then(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, []);
