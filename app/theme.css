@@ -250,4 +250,86 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 .tspeed { color: var(--ink); font-size: 15px; text-shadow: 0 2px 2px #14251c; }
 
 /* The supplied tall artwork travels with the shared flight camera. */
-.world { background: #10152c url("/game-background.svg") center bottom / cover no-repeat; }
+.world { background: #10152c; }
+.world-art { position: absolute; inset: 0; background: url("/game-background.svg") center bottom / 100% 100% no-repeat; image-rendering: pixelated; pointer-events: none; }
+
+/* Mobile: symmetric gutters, safe-area spacing, and controls that can shrink. */
+@media (max-width: 600px) {
+  .app { --mobile-top: calc(68px + env(safe-area-inset-top)); }
+  .home-screen { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 40px; padding: calc(100px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom)); }
+  .home-heading, .home-actions, .home-footer { position: static; width: 100%; max-width: 380px; }
+  .home-heading { padding: 0; gap: 16px; }
+  .home-actions { align-items: center; gap: 18px; margin-top: auto; padding-top: 32px; }
+  .flight-button { max-width: 100%; }
+  .ascent-button { width: 100%; }
+  .home-footer { justify-content: center; flex-wrap: wrap; gap: 8px 20px; text-align: center; }
+  .daily-result { text-align: center; overflow-wrap: anywhere; }
+  .topbar { gap: 12px; padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .iconbtn, .closebtn { min-width: 44px; min-height: 44px; flex-shrink: 0; }
+  .hud { left: 12px; right: 12px; top: var(--mobile-top); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 8px; min-height: 76px; }
+  .alt { min-width: 0; }
+  .alt .zone { max-width: 100%; overflow-wrap: anywhere; }
+  .pips { max-width: none; min-width: 0; }
+  .card { left: 12px; right: 12px; top: calc(var(--mobile-top) + 88px); max-height: max(90px, calc(100dvh - var(--mobile-top) - 210px)); overflow-y: auto; padding: 14px; text-align: center; }
+  .prompt, .prompt.sm { font-size: clamp(22px, 6vw, 29px); line-height: 1.15; overflow-wrap: anywhere; }
+  .hint { font-size: 13px; letter-spacing: .03em; }
+  .rnd { letter-spacing: .08em; }
+  .dock { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; }
+  .dock input { width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+  .dock .btn { min-width: 0; min-height: 44px; margin: 0; padding: 10px 12px; font-size: 16px; letter-spacing: 0; white-space: nowrap; }
+  .reject { left: 12px; right: 12px; max-width: calc(100% - 24px); bottom: calc(88px + env(safe-area-inset-bottom)); overflow-wrap: anywhere; }
+  .sheet, .sheet.top { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); max-height: calc(100dvh - var(--mobile-top) - 100px); }
+  .sheet.top { top: calc(var(--mobile-top) + 88px); }
+  .landed { left: 16px; right: 16px; top: calc(var(--mobile-top) + 100px); overflow-wrap: anywhere; }
+  .landed.mini { top: auto; bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .landed .tname { font-size: clamp(22px, 6vw, 34px); }
+  .ruler { right: 8px; width: 4px; opacity: .75; z-index: 4; }
+  .amb { left: 8px; max-width: calc(100vw - 24px); font-size: 11px; letter-spacing: .02em; white-space: normal; }
+  .amb.major { font-size: 12px; letter-spacing: .05em; }
+  .ptag { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page, .cols, .panel, .field, .inline, .row > *, .pilots li > span, .podium li > span { min-width: 0; }
+  .panel, .sheet, .roomhead { overflow-wrap: anywhere; }
+  .page { padding-top: calc(var(--mobile-top) + 16px); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .page.lobby { padding-top: 18px; }
+  .row { flex-wrap: wrap; }
+  .inline { flex-wrap: wrap; gap: 10px; }
+  .inline input { flex-basis: 160px; width: 100%; }
+  .inline .btn { flex: 1 1 100px; }
+  .btn { min-height: 44px; max-width: 100%; white-space: normal; }
+  .roomhead { margin-top: calc(var(--mobile-top) + 8px); }
+  .roomhead > div { min-width: 0; width: 100%; }
+  .roomhead h2 { font-size: 23px; }
+  .roomhead .closebtn { top: 12px; right: 12px; transform: none; }
+  .rooms, .pilots, .log, .podium { min-width: 0; }
+  .podium li { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .targets { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .targets .btn { margin: 0; overflow-wrap: anywhere; }
+  .mbox { left: 12px; right: 12px; padding: 16px; max-height: calc(100dvh - var(--mobile-top) - 24px); }
+  .feed { left: 16px; right: 16px; top: auto; bottom: calc(160px + env(safe-area-inset-bottom)); max-height: 18dvh; overflow: hidden; }
+  .feed li { overflow-wrap: anywhere; font-size: 13px; }
+  .menu { max-height: 100dvh; overflow-y: auto; padding-top: calc(20px + env(safe-area-inset-top)); padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .connection-status { top: auto; bottom: calc(88px + env(safe-area-inset-bottom)); left: 12px; right: 12px; text-align: center; font-size: 14px; }
+}
+@media (max-width: 600px) and (max-height: 620px) {
+  .app { --mobile-top: calc(56px + env(safe-area-inset-top)); }
+  .topbar { height: var(--mobile-top); }
+  .hud { min-height: 54px; padding: 4px 10px; }
+  .card { top: calc(var(--mobile-top) + 62px); padding: 10px 12px; max-height: max(70px, calc(100dvh - var(--mobile-top) - 150px)); }
+  .sheet.top { top: calc(var(--mobile-top) + 62px); }
+  .prompt, .prompt.sm { font-size: 22px; }
+  .home-screen { gap: 20px; padding-top: 76px; }
+  .home-actions { gap: 14px; padding-top: 16px; }
+  .feed { display: none; }
+}
+
+/* Paint the ground at its final camera position before enabling flight motion. */
+.flight-loading .world { transition: none; }
+.flight-ready .world-art { animation: ground-settle 650ms ease-out both; }
+@keyframes ground-settle { from { transform: translateY(-24px); } to { transform: translateY(0); } }
+.scene.flight-loading ~ .hud, .scene.flight-loading ~ .card, .scene.flight-loading ~ .dock, .scene.flight-loading ~ .ruler { visibility: hidden; }
+.scene.flight-ready ~ .hud, .scene.flight-ready ~ .card, .scene.flight-ready ~ .dock, .scene.flight-ready ~ .ruler { animation: flight-ui-in 220ms ease-out 650ms backwards; }
+@keyframes flight-ui-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .flight-ready .world-art { animation: none; }
+  .scene.flight-ready ~ .hud, .scene.flight-ready ~ .card, .scene.flight-ready ~ .dock, .scene.flight-ready ~ .ruler { animation: none; }
+}

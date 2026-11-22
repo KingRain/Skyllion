@@ -1,14 +1,14 @@
 "use client";
 // The shared pixel-art sky: one very tall world (runway → atmosphere layers → space) that a camera glides up,
 // plus the HUD, altitude ruler and the rarity-scaled "landed" effects. Used by solo play and Dogfight.
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import PX from "@/lib/px.json";
 import { TIERS, GROUNDED, zoneFor } from "@/lib/tiers";
 
 // ---------- altitude → world pixels (piecewise, so the thin lower layers still get room) ----------
 export const GROUND = 560; // tall enough that the runway fills the bottom of any screen at take-off
 const ANCHORS = [[0, 0], [1, 520], [12, 1500], [50, 2700], [85, 3700], [100, 4500], [408, 6400], [600, 7800], [700, 8800], [1500, 10600]];
-export const WORLD_H = GROUND + 10600 + 600;
+export const WORLD_H = 12740; // Match the supplied SVG canvas.
 export function yOf(km) {
   const k = Math.max(0, km);
   for (let i = 1; i < ANCHORS.length; i++) {
@@ -53,20 +53,36 @@ export function Landscape({ dim = false }) {
 
 // focus = altitude the camera centres on. me / others = { name, km, hue?, landed? }. ghosts = { label, km }.
 export function World({ focus = 0, me, others = [], ghosts = [], dim, shake, smooth = false }) {
-  const camY = WORLD_H - GROUND - yOf(focus);
+  const [scale, setScale] = useState(1);
+  const [ready, setReady] = useState(false);
+  useLayoutEffect(() => {
+    const resize = () => setScale(window.innerWidth / 1440);
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const image = new Image();
+    image.src = "/game-background.svg";
+    image.decode().catch(() => {}).then(() => { if (active) setReady(true); });
+    return () => { active = false; };
+  }, []);
+  const camY = (WORLD_H - GROUND - yOf(focus)) * scale;
   return (
-    <div className={`scene${shake ? " shake" : ""}${smooth ? " smooth-flight" : ""}`} aria-hidden>
-      <div className="world" style={{ height: WORLD_H, transform: `translateY(calc(58dvh - ${camY}px))` }}>
+    <div className={`scene${ready ? " flight-ready" : " flight-loading"}${shake ? " shake" : ""}${smooth ? " smooth-flight" : ""}`} aria-hidden>
+      <div className="world" style={{ height: WORLD_H * scale, transform: `translateY(calc(max(58dvh, calc(100dvh - ${GROUND * scale}px)) - ${camY}px))` }}>
+        <div className="world-art" />
         {LABELS.map(([km, text, major]) => (
-          <div key={km} className={`amb${major ? " major" : ""}`} style={{ bottom: GROUND + yOf(km) }}>
+          <div key={km} className={`amb${major ? " major" : ""}`} style={{ bottom: (GROUND + yOf(km)) * scale }}>
             <span className="dash">— </span>{km} km {major ? "· " : "· "}{text}
           </div>
         ))}
         {ghosts.map((g) => (
-          <div key={g.label} className="ghostline" style={{ bottom: GROUND + yOf(g.km) }}><span>{g.label} · {g.km} km</span></div>
+          <div key={g.label} className="ghostline" style={{ bottom: (GROUND + yOf(g.km)) * scale }}><span>{g.label} · {g.km} km</span></div>
         ))}
-        {others.map((p, i) => <Pilot key={p.id ?? p.name} {...p} left={`${44 + ((i * 11) % 42)}%`} />)}
-        {me && <Pilot {...me} me left="22%" />}
+        {others.map((p, i) => <Pilot key={p.id ?? p.name} {...p} scale={scale} left={`${44 + ((i * 11) % 42)}%`} />)}
+        {me && <Pilot {...me} scale={scale} me left="22%" />}
       </div>
       {dim && <div className="dimmer" />}
     </div>
@@ -74,9 +90,9 @@ export function World({ focus = 0, me, others = [], ghosts = [], dim, shake, smo
 }
 
 // hit = just took damage (explosion), shield = Flak Shield up, box = holding an unopened mystery box
-function Pilot({ me, name, km, hue = 0, left, landed, hit, shield, box }) {
+function Pilot({ scale = 1, me, name, km, hue = 0, left, landed, hit, shield, box }) {
   return (
-    <div className={`pilot${me ? " me" : ""}${km > 0 ? " flying" : ""}${hit ? " hit" : ""}`} style={{ bottom: GROUND + yOf(km) - 4, left, "--hue": `${hue}deg` }}>
+    <div className={`pilot${me ? " me" : ""}${km > 0 ? " flying" : ""}${hit ? " hit" : ""}`} style={{ bottom: (GROUND + yOf(km)) * scale - 4, left, "--hue": `${hue}deg` }}>
       {name && <span className="ptag">{box && <Px name="mbox" scale={1} fps={4} />}{name}{landed ? " ✓" : ""}</span>}
       <span className="trail" />
       <span className="pbody">
